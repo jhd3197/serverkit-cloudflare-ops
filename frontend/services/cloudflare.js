@@ -185,7 +185,42 @@ async function deleteCloudflareD1Database(zoneId, databaseId) {
     });
 }
 
+// Redirect / Transform / Cache rules: one ruleset per phase (slug).
+async function getCloudflareRules(zoneId, slug) {
+    return api.request(`/cloudflare/zones/${zoneId}/rules/${slug}`);
+}
+
+async function applyCloudflareRulePreset(zoneId, slug, presetKey) {
+    return api.request(`/cloudflare/zones/${zoneId}/rules/${slug}/presets/${presetKey}`, {
+        method: 'POST',
+        body: {},
+    });
+}
+
+async function deleteCloudflareRule(zoneId, slug, rulesetId, ruleId) {
+    return api.request(`/cloudflare/zones/${zoneId}/rules/${slug}/rulesets/${rulesetId}/rules/${ruleId}`, {
+        method: 'DELETE',
+    });
+}
+
+// Purge the deployed hostnames from this zone's cache on every successful deploy.
+async function getCloudflarePurgeOnDeploy(zoneId) {
+    return api.request(`/cloudflare/zones/${zoneId}/purge-on-deploy`);
+}
+
+async function setCloudflarePurgeOnDeploy(zoneId, enabled) {
+    return api.request(`/cloudflare/zones/${zoneId}/purge-on-deploy`, {
+        method: 'PUT',
+        body: { enabled },
+    });
+}
+
 const cloudflareApi = {
+    getCloudflareRules,
+    applyCloudflareRulePreset,
+    deleteCloudflareRule,
+    getCloudflarePurgeOnDeploy,
+    setCloudflarePurgeOnDeploy,
     getCloudflareZoneSettings,
     getCloudflareZoneSetting,
     updateCloudflareZoneSetting,

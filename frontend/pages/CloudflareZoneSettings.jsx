@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Cloud, ShieldCheck, Lock, Gauge, Database, Wand2, Eraser, Flame, Zap, Network, HardDrive } from 'lucide-react';
+import { Cloud, ShieldCheck, Lock, Gauge, Database, Wand2, Eraser, Flame, Zap, Network, HardDrive, ListFilter } from 'lucide-react';
 import CloudflareWafPanel from '../components/CloudflareWafPanel';
+import RulesPanel from '../components/RulesPanel';
 import WorkersPanel from '../components/WorkersPanel';
 import TunnelsPanel from '../components/TunnelsPanel';
 import StoragePanel from '../components/StoragePanel';
@@ -46,6 +47,25 @@ const CloudflareZoneSettings = () => {
     const [saving, setSaving] = useState(null);        // setting id in flight
     const [applying, setApplying] = useState(false);
     const [purgeUrls, setPurgeUrls] = useState('');
+    const [purgeOnDeploy, setPurgeOnDeploy] = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+        api.getCloudflarePurgeOnDeploy(zoneId)
+            .then((res) => { if (!cancelled) setPurgeOnDeploy(Boolean(res.enabled)); })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, [zoneId]);
+
+    async function handlePurgeOnDeploy(next) {
+        setPurgeOnDeploy(next);
+        try {
+            await api.setCloudflarePurgeOnDeploy(zoneId, next);
+        } catch (err) {
+            setPurgeOnDeploy(!next);
+            toast.error(err.message);
+        }
+    }
     const [purging, setPurging] = useState(false);
     const [confirmPurgeAll, setConfirmPurgeAll] = useState(false);
 
@@ -187,6 +207,7 @@ const CloudflareZoneSettings = () => {
                             </TabsTrigger>
                         ))}
                         <TabsTrigger value="waf"><Flame size={15} />WAF</TabsTrigger>
+                        <TabsTrigger value="rules"><ListFilter size={15} />{t('app.cloudflareZoneSettings.rules', 'Rules')}</TabsTrigger>
                         <TabsTrigger value="workers"><Zap size={15} />{t('app.cloudflareZoneSettings.workers', 'Workers')}</TabsTrigger>
                         <TabsTrigger value="tunnels"><Network size={15} />{t('app.cloudflareZoneSettings.tunnels', 'Tunnels')}</TabsTrigger>
                         <TabsTrigger value="storage"><HardDrive size={15} />{t('common.labels.storage', 'Storage')}</TabsTrigger>
@@ -213,6 +234,12 @@ const CloudflareZoneSettings = () => {
                     <TabsContent value="waf">
                         <div className="cf-panel">
                             <CloudflareWafPanel zoneId={zoneId} isAdmin={isAdmin} />
+                        </div>
+                    </TabsContent>
+
+                    <TabsContent value="rules">
+                        <div className="cf-panel">
+                            <RulesPanel zoneId={zoneId} isAdmin={isAdmin} />
                         </div>
                     </TabsContent>
 
@@ -269,6 +296,20 @@ const CloudflareZoneSettings = () => {
                                 >
                                     {purging ? 'Purging…' : 'Purge everything'}
                                 </Button>
+                            </div>
+                            <div className="cf-action cf-action--row">
+                                <div className="cf-action__text">
+                                    <strong>{t('app.cloudflareZoneSettings.purgeOnDeploy', 'Purge on deploy')}</strong>
+                                    <p>
+                                        {t('app.cloudflareZoneSettings.purgeOnDeployHint', 'After every successful deploy of an app on this domain, purge that app\'s hostnames from the cache.')}
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={purgeOnDeploy}
+                                    onCheckedChange={handlePurgeOnDeploy}
+                                    disabled={!isAdmin}
+                                    aria-label={t('app.cloudflareZoneSettings.purgeOnDeploy', 'Purge on deploy')}
+                                />
                             </div>
                             <div className="cf-purge-files">
                                 <label htmlFor="cf-purge-urls" className="cf-purge-files__label">

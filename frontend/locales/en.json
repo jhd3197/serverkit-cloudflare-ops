@@ -41,7 +41,10 @@
       "settingSaved": "Setting saved",
       "theNextVisitToEachPage": "The next visit to each page will be served from your origin until ",
       "tunnels": "Tunnels",
-      "workers": "Workers"
+      "workers": "Workers",
+      "purgeOnDeploy": "Purge on deploy",
+      "purgeOnDeployHint": "After every successful deploy of an app on this domain, purge that app's hostnames from the cache.",
+      "rules": "Rules"
     },
     "cloudflareWafPanel": {
       "activeRules": "Active rules (",
@@ -120,6 +123,36 @@
       "workerDeployedButTheRouteFailed": "Worker deployed, but the route failed: ",
       "workers": "Workers (",
       "workersUnavailable": "Workers unavailable"
+    },
+    "cloudflareRulesPanel": {
+      "add": "Add",
+      "cacheRules": "Cache Rules",
+      "noRules": "No rules yet",
+      "noRulesHint": "Add one of the presets above.",
+      "off": "Off",
+      "redirectRules": "Redirect Rules",
+      "remove": "Remove",
+      "ruleAdded": "Rule added",
+      "transformRules": "Transform Rules"
+    }
+  },
+  "common": {
+    "actions": {
+      "add": "Add",
+      "copy": "Copy",
+      "create": "Create",
+      "delete": "Delete",
+      "dismiss": "Dismiss",
+      "remove": "Remove",
+      "retry": "Retry"
+    },
+    "labels": {
+      "action": "Action",
+      "actions": "Actions",
+      "description": "Description",
+      "name": "Name",
+      "serverKit": "ServerKit",
+      "storage": "Storage"
     }
   }
 }

@@ -1097,10 +1097,12 @@ class CloudflareService:
     RULE_PHASES = {
         'redirect': 'http_request_dynamic_redirect',
         'transform': 'http_request_transform',
+        'cache': 'http_request_cache_settings',
     }
     RULE_ACTIONS = {
         'redirect': {'redirect'},
         'transform': {'rewrite'},
+        'cache': {'set_cache_settings'},
     }
 
     # Preset library per rule type (plan §Phase 3). Presets take no free-form user
@@ -1123,7 +1125,22 @@ class CloudflareService:
              'description': 'Remove utm_*, gclid and fbclid query parameters.',
              'params': []},
         ],
+        'cache': [
+            {'key': 'cache_static', 'label': 'Cache static assets at the edge',
+             'description': ('Make scripts, styles, images and fonts eligible for the edge '
+                             'cache, keeping the cache lifetime the origin sends.'),
+             'params': []},
+            {'key': 'bypass_api_admin', 'label': 'Bypass the cache for /api and /admin',
+             'description': 'Never cache API, admin or login paths at the edge.',
+             'params': []},
+        ],
     }
+
+    # File extensions the cache_static preset makes cacheable. Respecting the
+    # origin's lifetime keeps an app's own Cache-Control (e.g. ServerKit's
+    # immutable fingerprinted assets) the one policy.
+    STATIC_EXTENSIONS = ('js', 'mjs', 'css', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp',
+                         'avif', 'ico', 'woff', 'woff2', 'ttf', 'otf')
 
     _SAFE_HOST_RE = re.compile(r'^[a-z0-9.-]+$')
 
@@ -1235,6 +1252,23 @@ class CloudflareService:
                                            'concat("https://", http.host, '
                                            'substring(http.request.uri.path, 0, -1))'},
                             'preserve_query_string': True}}}
+        elif slug == 'cache':
+            if key == 'cache_static':
+                exts = ' '.join(f'"{e}"' for e in cls.STATIC_EXTENSIONS)
+                return {'description': 'ServerKit: cache static assets at the edge',
+                        'expression': f'(http.request.uri.path.extension in {{{exts}}})',
+                        'action': 'set_cache_settings',
+                        'action_parameters': {'cache': True,
+                                              'edge_ttl': {'mode': 'respect_origin'},
+                                              'browser_ttl': {'mode': 'respect_origin'}}}
+            if key == 'bypass_api_admin':
+                return {'description': 'ServerKit: bypass cache for /api and /admin',
+                        'expression': ('(starts_with(http.request.uri.path, "/api") or '
+                                       'starts_with(http.request.uri.path, "/admin") or '
+                                       'starts_with(http.request.uri.path, "/wp-admin") or '
+                                       'starts_with(http.request.uri.path, "/login"))'),
+                        'action': 'set_cache_settings',
+                        'action_parameters': {'cache': False}}
         elif slug == 'transform':
             if key == 'strip_tracking':
                 return {'description': 'ServerKit: strip tracking parameters',
@@ -1283,6 +1317,65 @@ class CloudflareService:
             return {'success': False, 'error': res.get('error', 'Failed to delete rule')}
         cls._record(zone, slug, 'delete-rule', rule_id)
         return {'success': True}
+
+    # ── Purge on deploy (plan 86 §B4) ─────────────────────────────────────────
+    # Opt-in per zone. When an app on one of the zone's hostnames deploys, the
+    # core's app.deployed event reaches on_app_deployed (core_hooks.py) and the
+    # zone's cache is purged for exactly those hostnames.
+
+    PURGE_ON_DEPLOY_KEY = 'purge_on_deploy:{zone_id}'
+
+    @staticmethod
+    def _store():
+        from app.plugins_sdk import store
+        return store.for_plugin('serverkit-cloudflare-ops')
+
+    @classmethod
+    def get_purge_on_deploy(cls, zone_id):
+        zone, _ = cls._zone_and_client(zone_id)
+        return {'success': True, 'zone_id': zone.id,
+                'enabled': bool(cls._store().get(cls.PURGE_ON_DEPLOY_KEY.format(zone_id=zone.id)))}
+
+    @classmethod
+    def set_purge_on_deploy(cls, zone_id, enabled):
+        zone, _ = cls._zone_and_client(zone_id)
+        key = cls.PURGE_ON_DEPLOY_KEY.format(zone_id=zone.id)
+        if enabled:
+            cls._store().set(key, True)
+        else:
+            cls._store().delete(key)
+        cls._record(zone, 'cache', 'purge-on-deploy', 'on' if enabled else 'off')
+        return {'success': True, 'zone_id': zone.id, 'enabled': bool(enabled)}
+
+    @staticmethod
+    def _zone_for_host(zones, host):
+        """The most specific zone whose domain is ``host`` or a parent of it."""
+        host = (host or '').strip().lower().rstrip('.')
+        matches = [z for z in zones
+                   if host == z.domain.lower() or host.endswith('.' + z.domain.lower())]
+        return max(matches, key=lambda z: len(z.domain), default=None)
+
+    @classmethod
+    def purge_for_deploy(cls, domains):
+        """Purge each opted-in Cloudflare zone for the deployed hostnames.
+        Returns ``{zone_id: result}``; never raises."""
+        from app.models.dns_zone import DNSZone
+        zones = DNSZone.query.filter(DNSZone.provider == 'cloudflare').all()
+        by_zone = {}
+        for host in domains or []:
+            zone = cls._zone_for_host(zones, host)
+            if zone and cls._store().get(cls.PURGE_ON_DEPLOY_KEY.format(zone_id=zone.id)):
+                by_zone.setdefault(zone.id, []).append(host.lower())
+        results = {}
+        for zone_id, hosts in by_zone.items():
+            try:
+                results[zone_id] = cls.purge_cache(zone_id, hosts=hosts)
+            except CloudflareError as e:
+                results[zone_id] = {'success': False, 'error': str(e)}
+            except Exception as e:  # noqa: BLE001 - a purge never breaks a deploy
+                logger.warning('purge on deploy failed for zone %s: %s', zone_id, e)
+                results[zone_id] = {'success': False, 'error': str(e)}
+        return results
 
     # ── Activity (local ops ledger) ───────────────────────────────────────────
 

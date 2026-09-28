@@ -41,7 +41,10 @@
       "settingSaved": "Ajuste guardado",
       "theNextVisitToEachPage": "La próxima visita a cada página se servirá desde tu origen hasta que ",
       "tunnels": "Túneles",
-      "workers": "Workers"
+      "workers": "Workers",
+      "purgeOnDeploy": "Purgar al desplegar",
+      "purgeOnDeployHint": "Tras cada despliegue correcto de una app en este dominio, purga sus nombres de host de la caché.",
+      "rules": "Reglas"
     },
     "cloudflareWafPanel": {
       "activeRules": "Reglas activas (",
@@ -120,6 +123,17 @@
       "workerDeployedButTheRouteFailed": "Worker desplegado, pero la ruta falló: ",
       "workers": "Workers (",
       "workersUnavailable": "Workers no disponibles"
+    },
+    "cloudflareRulesPanel": {
+      "add": "Añadir",
+      "cacheRules": "Reglas de caché",
+      "noRules": "Aún no hay reglas",
+      "noRulesHint": "Añade uno de los preajustes de arriba.",
+      "off": "Desactivada",
+      "redirectRules": "Reglas de redirección",
+      "remove": "Quitar",
+      "ruleAdded": "Regla añadida",
+      "transformRules": "Reglas de transformación"
     }
   }
 }

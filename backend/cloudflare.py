@@ -452,7 +452,31 @@ def revoke_origin_certificate(zone_id, certificate_id):
     return _service_response(res)
 
 
-# ── Redirect + Transform rules ─────────────────────────────────────────────────
+# ── Purge on deploy (plan 86 §B4) ──────────────────────────────────────────────
+
+@cloudflare_bp.route('/zones/<int:zone_id>/purge-on-deploy', methods=['GET'])
+@jwt_required()
+def get_purge_on_deploy(zone_id):
+    try:
+        return _service_response(CloudflareService.get_purge_on_deploy(zone_id))
+    except CloudflareError as e:
+        return jsonify({'error': str(e)}), 400
+
+
+@cloudflare_bp.route('/zones/<int:zone_id>/purge-on-deploy', methods=['PUT'])
+@jwt_required()
+def set_purge_on_deploy(zone_id):
+    require_admin_user()
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data.get('enabled'), bool):
+        return jsonify({'error': "'enabled' must be true or false"}), 400
+    try:
+        return _service_response(CloudflareService.set_purge_on_deploy(zone_id, data['enabled']))
+    except CloudflareError as e:
+        return jsonify({'error': str(e)}), 400
+
+
+# ── Redirect, Transform + Cache rules ──────────────────────────────────────────
 
 @cloudflare_bp.route('/zones/<int:zone_id>/rules/<slug>', methods=['GET'])
 @jwt_required()
